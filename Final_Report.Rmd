@@ -1,0 +1,184 @@
+---
+title: "Final Report for Airbnb in London"
+author: "Kecheng Liang"
+date: "Dec 5, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load("arm","dplyr","tidyr","ggplot2","lme4","knitr","pander","coefplot")
+```
+
+```{r,warning=FALSE,echo=FALSE}
+#Data import
+initial <- read.csv("airbnblondon.csv")
+LondonAirbnb <- initial[,c(-2,-5,-6,-8,-13,-15,-16,-19)]
+#reviews = 0 is meaningless
+LondonAirbnb <- filter(LondonAirbnb,reviews>0)
+#rating cannot be 0
+LondonAirbnb <- filter(LondonAirbnb,overall_satisfaction>0)
+LondonAirbnb$room_id <- as.character(LondonAirbnb$room_id)
+LondonAirbnb$host_id <- as.character(LondonAirbnb$host_id)
+LondonAirbnb$overall_satisfaction <- as.numeric(LondonAirbnb$overall_satisfaction)
+```
+
+#a.Abstract
+
+This analysis is focus on the Airbnb rating. I choose London as my target city and the dataset is from http://tomslee.net/airbnb-data-collection-get-the-data. I mainly focus on the variables such as room type, number of reviews, price, number of bedrooms, and accommodates. There are some graphs I made to help me interpret the analysis. Finally, I made five models to find some useful information.
+
+#b.Introduction
+
+##i.Background
+
+Nowadays, more and more people choose Airbnb when having a vocation in another city. Because of its low price and convenient location, Airbnb becomes more popular than before. London, one of the most attractive and popular cities in Europe, has a very high number of Airbnb hosts.
+
+##ii.Previous work
+
+Airbnb is a large company and there are lots of related datasets on the website which is already organized well. I found a clearly organized dataset on the website with several variables such as ratings, price and so on.
+
+#c.Method
+
+##i.Data source
+
+Data source for London with 64144 properties as of July 28, 2017 is collected from the public Airbnb website. I exclude 31947 properties with no reviews or rating score is zero. 
+```{r,warning=FALSE,echo=FALSE}
+var <- data.frame(Variables = c("Room_id","Host_id","Room_type","Borough","Reviews","Overall satisfaction","Accommodates","Bedrooms","Price","Latitude","Longtitude"),
+                 Explanation = c("A unique number for an Airbnb property","A unique number for an Airbnb host","Room type of the Airbnb property, one of shared room, entire room/apt, or private room","A town, or part of a large city","The number of reviews that an Airbnb property received","The average rating that an Airbnb property received(max value is five)","The number of visitors can live in an Airbnb property","The number of bedrooms in an Airbnb property","The price for a night stay","The latitude of the Airbnb property","The longtitude of the Airbnb property"))
+kable(var,caption = "Variables explanation")
+```
+
+
+
+##ii.Model used
+
+```{r,warning=FALSE,echo=FALSE}
+#EDA part
+hist(LondonAirbnb$overall_satisfaction,main = "Distribution of Ratings", xlab = "number of ratings")
+```
+From the above graph, we can see that most of the Airbnb properties ratings have more than 4 points.
+
+```{r,warning=FALSE,echo=FALSE}
+hist(LondonAirbnb$reviews,main = "Distribution of Reviews",xlab = "number of reviews")
+```
+From the above graph, we can see that most of the Airbnb properties have less than 100 reviews.
+
+```{r,warning=FALSE,echo=FALSE}
+ggplot(data = LondonAirbnb,aes(x=overall_satisfaction,y=reviews))+geom_jitter()+scale_x_discrete(name ="Ratings",limits=c("1","2","3","4","5"))+ggtitle("Ratings and Reviews")+labs(y="Reviews")
+```
+From the above graph, we can see that generally when the ratings are higher, there are more reviews for this Airbnb property.
+
+```{r,warning=FALSE,echo=FALSE}
+ggplot(data=LondonAirbnb,aes(x=accommodates,fill=room_type))+geom_bar(position = "fill")+ggtitle("Accommodates and room type")
+```
+From the above graph we can see that entire room tends to allow more accommodates compare to the private room.
+
+```{r,warning=FALSE,echo=FALSE}
+ggplot(data=LondonAirbnb,aes(x=bedrooms,fill=room_type))+geom_bar(position = "fill")+ggtitle("Bedrooms and room type")
+```
+From the graph above we can see that shared rooms have only one bedroom, and entire room usually have more rooms.
+
+```{r,warning=FALSE,echo=FALSE}
+ggplot(data=LondonAirbnb,aes(x=price,fill=room_type))+geom_histogram(binwidth = 100)+ggtitle("Price and room type")+xlim(0,750)
+```
+From the graph we can see that entire room are more likely have higher price.
+
+```{r}
+#There are five models I use.
+#model1 has no random effect and I use glm. 
+#model2 has no random effect, but I remove reviews which is not significant in the first model.
+#model3 has random intercept.
+#model4 has random slope.
+#model5 has random intercept and slope.
+
+#model1 no random effect
+model1 <- glm(overall_satisfaction~room_type+reviews+accommodates+bedrooms+log(price),
+              data = LondonAirbnb)
+#remove reviews, no relationship
+
+#model2 remove reviews
+model2 <- glm(overall_satisfaction~factor(room_type)+accommodates+bedrooms+log(price),
+              data = LondonAirbnb)
+
+#random intercept borough
+model3 <- lmer(overall_satisfaction~factor(room_type)+accommodates+bedrooms+log(price)+
+                 (1|borough),data = LondonAirbnb)
+
+#random slope
+model4 <- lmer(overall_satisfaction~factor(room_type)+accommodates+bedrooms+log(price)+
+                 (0+log(price)|borough),data = LondonAirbnb)
+
+#random slope and intercept
+model5 <- lmer(overall_satisfaction~factor(room_type)+accommodates+bedrooms+log(price)+(1+log(price)|borough),data = LondonAirbnb)
+
+```
+#d.Result
+
+##i.Model choice and interpretation
+
+```{r,echo=FALSE}
+arm::coefplot(model1,main="Coefficient plot for model1")
+display(model1)
+```
+Based on the output, we can see that all the coefficients are significant except "reviews". With each unit increase of accommodates, the rating will decrease 0.07. With each unit increase of bedroom, the rating will increase 0.09. When the log(price) increase by one, the rating will increase 0.11. Pivate room has 0.06 higher than Entire room and Shared room has 0.09 lower than the Entire room.
+
+```{r,echo=FALSE}
+arm::coefplot(model2,main="Coefficient plot for model2")
+display(model2)
+```
+Because of the previous model, I remove reviews out. Based on the output, we can see that all the coefficients are significant except "reviews". With each unit increase of accommodates, the rating will decrease 0.06. With each unit increase of bedroom, the rating will increase 0.09. When the log(price) increase by one, the rating will increase 0.11. Pivate room has 0.06 higher than Entire room and Shared room has 0.09 lower than the Entire room.
+
+```{r,echo=FALSE}
+coefplot(model3,main="Coefficient plot for model3",intercept = FALSE)
+display(model3)
+```
+Based on the output, we can see that all the coefficients are significant except "shared room". With each unit increase of accommodates, the rating will decrease 0.06. With each unit increase of bedroom, the rating will increase 0.06. When the log(price) increase by one, the rating will increase 0.19. Pivate room has 0.08 higher than Entire room and Shared room has 0.01 lower than the Entire room. Thr borough variation has the standard deviation of 0.39 an d the intercept of 0.09.
+
+```{r,echo=FALSE}
+coefplot(model4,main="Coefficient plot for model4",intercept = FALSE)
+display(model4)
+```
+Based on the output, we can see that all the coefficients are significant except "shared room". With each unit increase of accommodates, the rating will decrease 0.06. With each unit increase of bedroom, the rating will increase 0.06. When the log(price) increase by one, the rating will increase 0.20. Pivate room has 0.09 higher than Entire room and Shared room has 0.01 lower than the Entire room. Thr borough has the residual 0.39 and the intercept of 0.02.
+
+```{r,echo=FALSE}
+coefplot(model5,main="Coefficient plot for model5",intercept = FALSE)
+display(model5)
+```
+Comparing to the previous model, the signs do not change. The residual is still 0.39 and the slope is 0.04. The correlation with intercept is -0.92.
+
+##ii.Model checking
+
+```{r,echo=FALSE}
+binnedplot(fitted(model2),residuals(model2),main = "Binned Residual plot for model2",nclass=50)
+anova(model3,model4,model5)
+plot(model5)
+qqnorm(resid(model5))
+binnedplot(fitted(model3),residuals(model3),main = "Binned Residual plot for model3",nclass=50)
+binnedplot(fitted(model4),residuals(model4),main = "Binned Residual plot for model4",nclass=50)
+binnedplot(fitted(model5),residuals(model5),main = "Binned Residual plot for model5",nclass=50)
+```
+Model5 is better because of the lower AIC and BIC. The residual plot looks great for the models.
+
+#e.Discussion
+##i.Implication andLimitation
+
+The price has a lot positive influence for the rating. There are some time limitation, because the data only contained the properties as of July 28, 2017. The data cannot show the big picture of the whole Airbnb properties.
+
+##ii.Future direction
+
+For the rating model, I can do the multilevel logistic model in the future.
+
+#f.Reference
+
+http://tomslee.net/airbnb-data-collection-get-the-data
+
+#g.Appendix
+```{r,echo=FALSE}
+ggplot(data = LondonAirbnb,aes(x=room_type,y=accommodates))+geom_jitter()+ggtitle("Room type and accommodates")+labs(x="Room type",y="Accommodates")
+```
+
+```{r,echo=FALSE}
+ggplot(data = LondonAirbnb,aes(x=overall_satisfaction,y=price))+geom_jitter()+scale_x_discrete(name="Ratings",limits=c("1","2","3","4","5"))+ggtitle("Ratings and Prices")+labs(y="Price")
+
+ggplot(data = LondonAirbnb,aes(x=overall_satisfaction,y=borough))+geom_jitter()+scale_x_discrete(name="Ratings",limits=c("1","2","3","4","5"))+ggtitle("Ratings and Reviews")
+```

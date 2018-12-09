@@ -1,0 +1,93 @@
+---
+title: "Airbnb London"
+author: "Kecheng Liang"
+date: "November 28, 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup,include=FALSE}
+library(arm)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(lme4)
+```
+
+## Read data
+1) import data
+```{r}
+initial <- read.csv("airbnblondon.csv")
+```
+
+2) remove unrelevant variables and zero reviews
+```{r}
+LondonAirbnb <- initial[,c(-2,-5,-6,-13,-15,-16,-19)]
+#reviews = 0 is meaningless
+LondonAirbnb <- filter(LondonAirbnb,reviews>0)
+#rating cannot be 0
+LondonAirbnb <- filter(LondonAirbnb,overall_satisfaction>0)
+```
+
+3) overview of the data
+```{r}
+summary(LondonAirbnb)
+```
+
+4) convert the numberic to character
+```{r}
+LondonAirbnb$room_id <- as.character(LondonAirbnb$room_id)
+LondonAirbnb$host_id <- as.character(LondonAirbnb$host_id)
+LondonAirbnb$overall_satisfaction <- as.numeric(LondonAirbnb$overall_satisfaction)
+```
+
+5) remove outliers?
+
+```{r}
+#not sure how to do this
+```
+
+##EDA
+
+```{r}
+ggplot(data = LondonAirbnb,aes(x=overall_satisfaction,y=reviews))+geom_jitter()+scale_x_discrete(name ="Ratings",limits=c("1","2","3","4","5"))+ggtitle("Ratings and Reviews")
+
+ggplot(data=LondonAirbnb,aes(x=reviews))+geom_bar()
+
+boxplot(LondonAirbnb$reviews)
+
+ggplot(data = LondonAirbnb,aes(x=overall_satisfaction,y=room_type))+geom_jitter()+scale_x_discrete(name ="Ratings",limits=c("1","2","3","4","5"))+ggtitle("Ratings and Reviews")
+
+ggplot(data = LondonAirbnb,aes(x=overall_satisfaction,y=price))+geom_jitter()+scale_x_discrete(name ="Ratings",limits=c("1","2","3","4","5"))+ggtitle("Ratings and Reviews")
+
+ggplot(data = LondonAirbnb,aes(x=overall_satisfaction,y=borough))+geom_jitter()+scale_x_discrete(name ="Ratings",limits=c("1","2","3","4","5"))+ggtitle("Ratings and Reviews")
+
+plot(LondonAirbnb$overall_satisfaction,LondonAirbnb$reviews)
+```
+
+##Models
+
+```{r}
+#model1 no random effect
+model1 <- glm(overall_satisfaction~room_type+reviews+accommodates+bedrooms+log(price),data = LondonAirbnb)
+#remove reviews, no relationship
+
+#model2 remove reviews
+#ok d model
+model2 <- glm(overall_satisfaction~factor(room_type)+accommodates+bedrooms+log(price),data = LondonAirbnb)
+
+binnedplot(fitted(model2),residuals(model2),nclass=50)
+
+#random intercept borough
+model3 <- lmer(overall_satisfaction~factor(room_type)+accommodates+bedrooms+log(price)+(1|borough),data = LondonAirbnb)
+
+#random slope
+model4 <- lmer(overall_satisfaction~factor(room_type)+accommodates+bedrooms+log(price)+(0+log(price)|borough),data = LondonAirbnb)
+
+#random slope and intercept
+model5 <- lmer(overall_satisfaction~factor(room_type)+accommodates+bedrooms+log(price)+(1+log(price)|borough),data = LondonAirbnb)
+```
+
+
+
